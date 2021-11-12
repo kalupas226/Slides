@@ -150,24 +150,29 @@ struct PullToRefreshView: View {
 
 ```swift
 var body: some View {
-	WithViewStore(self.store) { viewStore in
-		 List {
-			HStack {
-				Button("-") { viewStore.send(.decrementButtonTapped) }
-				Text("\(viewStore.count)")
-				Button("+") { viewStore.send(.incrementButtonTapped) }
-			}
-			.buttonStyle(.plain)
-
-			if let fact = viewStore.fact { Text(fact) }
-      if viewStore.isLoading {
-        Button("Cancel") { viewStore.send(.canelButtonTapped) }
+  WithViewStore(self.store) { viewStore in
+    List {
+      HStack {
+        Button("-") { viewStore.send(.decrementButtonTapped) }
+        Text("\(viewStore.count)")
+        Button("+") { viewStore.send(.incrementButtonTapped) }
       }
-     }
-		 .refreshable {
-			 viewStore.send(.refresh)
-		 }
-	}
+      .buttonStyle(.plain)
+
+      if let fact = viewStore.fact {
+        Text(fact)
+      }
+
+      if viewStore.isLoading {
+        Button("Cancel") {
+          viewStore.send(.cancelButtonTapped)       
+        }
+      }
+    }
+    .refreshable {
+      viewStore.send(.refresh)
+    }
+  }
 }
 ```
 
@@ -413,4 +418,37 @@ func send(
 
 ---
 
-# しかし地味なバグが発生してしまう
+# cancel 時の animation がないバグがある
+
+<div class="flex justify-center mt-5">
+  <img src="/images/refreshable_cancel_no_animation.gif" width=200>
+</div>
+
+---
+
+# combine-schedulers の animation 機能を使って解決
+
+```swift
+case .refresh:
+  state.isLoading = true
+  state.fact = nil
+  return environment.fact.fetch(state.count)
+    .delay(for: 2, scheduler: environment.mainQueue.animation())
+    // ...
+
+// ...
+
+Button("Cancel") {
+  viewStore.send(.cancelButtonTapped, animation: .default)
+}
+```
+
+---
+
+# 無事 animation が行われるようになる
+
+<div class="flex justify-center mt-5">
+  <img src="/images/refreshable_cancel_with_animation.gif" width=200>
+</div>
+
+---

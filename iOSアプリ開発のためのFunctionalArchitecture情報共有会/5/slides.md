@@ -37,7 +37,7 @@ List(mailbox.conversations) {
 
 - TCA では v0.23.0 から `ViewStore.send(_:while:)` というものが導入されている(現在時点では Beta ）
 - これを refreshable 内で利用すると TCA で refreshable が上手く扱える
-- 「Async Refreshable: Composable Architecture」という Point-Free 内のエピソードをもとに、<br />TCA でどのように refreshable が扱えるか見てこうと思います
+- 「Async Refreshable: Composable Architecture」という Point-Free 内のエピソードをもとに、<br />TCA でどのように refreshable が扱えるか見ていこうと思います
 
 ---
 
@@ -199,7 +199,7 @@ struct PullToRefreshView_Previews: PreviewProvider {
 
 ---
 
-# 動かしてみる
+# 実行してみる
 
 <div class="flex justify-center mt-5">
   <img src="/images/refreshable_not_async.gif" width=200>
@@ -210,7 +210,7 @@ layout: center
 class: text-center
 ---
 
-# なんか良さそう？？
+# 動作的には問題なさそうに見える？
 
 ---
 
@@ -238,7 +238,7 @@ case .refresh:
 
 - `refreshable` View Modifier は closure に async な処理を要求する
   - 提供された非同期な処理が実行されている限り loading indicator が留まるというものになっている
-- 現在実装している `viewStore.send(.refresh)` は同期的な処理
+- 現在実装している `viewStore.send(.refresh)` は async ではない同期的な処理
 - TCA でこの問題を解決するためには少し工夫する必要がある
 
 ---
@@ -288,7 +288,7 @@ case .cancelButtonTapped:
 
 ---
 
-# async な send の signature はこんな感じなはず
+# async な send の signature はこのような形
 
 ```swift
 extension ViewStore {
@@ -370,7 +370,7 @@ func send(
 	_ action: Action,
 	`while` isInFlight: @escaping (State) -> Bool
 ) async {
-	self.send(action) 
+  self.send(action)
   await withUnsafeContinuation { continuation in
     self.publisher
       .filter { !isInFlight($0) } 
@@ -384,14 +384,14 @@ func send(
 
 ---
 
-# `cancellable` の対処
+# `cancellable` の取り扱い方
 
 ```swift
 func send(
 	_ action: Action,
 	`while` isInFlight: @escaping (State) -> Bool
 ) async {
-	self.send(action) 
+  self.send(action) 
 
   var cancellable: Cancellable?
   await withUnsafeContinuation { (continuation: UnsafeContinuation<Void, Never>) in // 型推論ができなくなるため型を明示
@@ -408,7 +408,7 @@ func send(
 
 ---
 
-# 以下のコードがコンパイルされるようになる
+# コンパイルが通るようになる
 
 ```swift
 .refreshable {
@@ -418,7 +418,7 @@ func send(
 
 ---
 
-# cancel 時の animation がないバグがある
+# cancel 時の animation がない問題がある
 
 <div class="flex justify-center mt-5">
   <img src="/images/refreshable_cancel_no_animation.gif" width=200>
@@ -445,10 +445,25 @@ Button("Cancel") {
 
 ---
 
-# 無事 animation が行われるようになる
+# 無事 cancel 時の animation が行われるようになる
 
 <div class="flex justify-center mt-5">
   <img src="/images/refreshable_cancel_with_animation.gif" width=200>
 </div>
 
 ---
+
+# まとめ
+
+- SwiftUI の `refreshable` View Modifier は簡単に Pull To Refresh を表現できる
+- `refreshable` は async な処理を要求するため、TCA で利用するためには工夫が必要
+- 現在時点では Beta だが、TCA にはそのための `viewStore.send(_:while:)` が用意されている
+- 発表では紹介しなかったが、TCA を利用すると非常に網羅的なテストが可能となる
+  - 網羅的なテストができることが TCA の売り
+  - 例えば State を追加したりしたら、その State の変化を検証しないとテストは失敗する
+  - 発生しうる Action も `receive` 等によって網羅する必要がある
+- 素の SwiftUI だと以下のような部分でテストが厳しくなると述べられていた
+  - 詳しくは Point-Free の「Async Refreshable: SwiftUI」を参照して頂ければと思います🙏
+  - API リクエストをキャンセルする際のフローがテストできない(する方法がわからない)
+    - Xcode Beta 版のバグか、Swift の custom executors を使う必要があるのかはっきりしていないらしい
+  - async な処理中の `isLoading` の変化をテストするために、テスト内で Sleep を行う必要がある

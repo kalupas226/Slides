@@ -408,6 +408,26 @@ func send(
 
 ---
 
+# 現在時点の Beta ディレクトリにある実装方法
+
+```swift
+func send(
+  _ action: Action,
+  while predicate: @escaping (State) -> Bool
+) async {
+  self.send(action)
+  await self.suspend(while: predicate)
+}
+
+func suspend(while predicate: @escaping (State) -> Bool) async {
+  _ = await self.publisher
+    .values // AsyncPublisher<Self>
+    .first(where: { !predicate($0) }) // AnyCancellable を返却しないため、そのための対処が必要ない
+}
+```
+
+---
+
 # コンパイルが通るようになる
 
 ```swift
